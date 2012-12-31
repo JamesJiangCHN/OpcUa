@@ -1,0 +1,17 @@
+Copyright and License Information
+
+The OPC UA Stack binary (Opc.Ua.Stack-X.X.X.X.jar) installed by this package is subject to the terms of the "OPC Redistributables License Version 1.00".
+
+All OPC UA Stack source files (in Opc.Ua.Stack-X.X.X.X-src.zip) are subject to one of  
+
+- OPC Foundation MIT License Version 1.00
+- OPC Reciprocal Community License ("RCL") Version 1.00
+- OPC Reciprocal Community Binary License ("RCBL") Version 1.00
+
+The applicable license agreement is declared at the top of each source file.
+
+If a license declaration is not specified in a source file then the file is subject to the 
+OPC Reciprocal Community Binary License ("RCBL") Version 1.00.
+
+The actual licenses and a more detailed overview of the different agreements can be found from:
+http://www.opcfoundation.org/Default.aspx/License/UALicense.asp

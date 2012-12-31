@@ -1,0 +1,19 @@
+Use of Prosys OPC UA SDK is under several license agreements.
+
+LICENSE
+
+Prosys SDK license
+
+  Prosys OPCUA Java SDK is covered by the license terms in 
+  
+  Prosys_OPC_UA_Java_SDK_License.pdf
+
+Libraries
+
+  The SDK uses the following libraries, which are covered by individual licenses,
+  available in the following files. 
+
+  -- Library --                 -- License file --
+  OPC Foundation Java Stack     LICENSE.opc.ua.stack
+  Apache Logging Services       LICENSE.log4j
+  Bouncy Castle Crypto API      LICENSE.bouncycastle
