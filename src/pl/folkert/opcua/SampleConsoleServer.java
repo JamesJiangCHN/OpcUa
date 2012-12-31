@@ -324,7 +324,7 @@ public class SampleConsoleServer {
     private static int eventId = 0;
     private static Logger logger = Logger.getLogger(SampleConsoleServer.class);
     private static NonExclusiveLevelAlarmType myAlarm;
-    private static MyBigNodeManager myBigNodeManager;
+    private static BigNodeManager myBigNodeManager;
     private static UaObject myDevice;
     private static EventManagerListener myEventManagerListener = new EventManagerListener() {
         @Override
@@ -1287,7 +1287,7 @@ public class SampleConsoleServer {
      * available from another existing subsystem.
      */
     private static void createBigNodeManager() {
-        myBigNodeManager = new MyBigNodeManager(server,
+        myBigNodeManager = new BigNodeManager(server,
                 "http://www.prosysopc.com/OPCUA/SampleBigAddressSpace", 1000);
     }
 
