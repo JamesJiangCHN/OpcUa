@@ -19,6 +19,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import org.apache.log4j.Logger;
 import org.opcfoundation.ua.builtintypes.DataValue;
 import org.opcfoundation.ua.builtintypes.DateTime;
 import org.opcfoundation.ua.builtintypes.ExpandedNodeId;
@@ -42,6 +43,8 @@ import org.opcfoundation.ua.utils.NumericRange;
  * but connects to an underlying system for the data.
  */
 public class BigNodeManager extends NodeManager {
+    
+    protected static final Logger logger = Logger.getLogger("log4j.logger.com.prosysopc.ua");
 
     public class DataItem {
 
@@ -137,16 +140,6 @@ public class BigNodeManager extends NodeManager {
             super(nodeManager);
         }
 
-        /*
-         * (non-Javadoc)
-         * 
-         * @see
-         * com.prosysopc.ua.server.IoManager#readNonValue(com.prosysopc.ua.server
-         * .ServiceContext, org.opcfoundation.ua.builtintypes.NodeId,
-         * com.prosysopc.ua.nodes.UaNode,
-         * org.opcfoundation.ua.builtintypes.UnsignedInteger,
-         * org.opcfoundation.ua.builtintypes.DataValue)
-         */
         @Override
         protected void readNonValue(ServiceContext serviceContext,
                 NodeId nodeId, UaNode node, UnsignedInteger attributeId,
@@ -185,18 +178,6 @@ public class BigNodeManager extends NodeManager {
             dataValue.setServerTimestamp(DateTime.currentTime());
         }
 
-        /*
-         * (non-Javadoc)
-         * 
-         * @see
-         * com.prosysopc.ua.server.IoManager#readValue(com.prosysopc.ua.server
-         * .ServiceContext, org.opcfoundation.ua.builtintypes.NodeId,
-         * com.prosysopc.ua.nodes.UaVariable,
-         * org.opcfoundation.ua.utils.NumericRange,
-         * org.opcfoundation.ua.core.TimestampsToReturn,
-         * org.opcfoundation.ua.builtintypes.DateTime,
-         * org.opcfoundation.ua.builtintypes.DataValue)
-         */
         @Override
         protected void readValue(ServiceContext serviceContext, NodeId nodeId,
                 UaVariable node, NumericRange indexRange,
@@ -207,7 +188,6 @@ public class BigNodeManager extends NodeManager {
                 throw new StatusException(StatusCodes.Bad_NodeIdInvalid);
             }
             dataItem.getDataValue(dataValue);
-
         }
     }
 
@@ -245,23 +225,11 @@ public class BigNodeManager extends NodeManager {
                     referenceType);
         }
 
-        /*
-         * (non-Javadoc)
-         * 
-         * @see com.prosysopc.ua.nodes.UaReference#delete()
-         */
         @Override
         public void delete() {
             throw new RuntimeException("StatusCodes.Bad_NotImplemented");
         }
 
-        /*
-         * (non-Javadoc)
-         * 
-         * @see
-         * com.prosysopc.ua.nodes.UaReference#getIsInverse(org.opcfoundation
-         * .ua.builtintypes.NodeId)
-         */
         @Override
         public boolean getIsInverse(NodeId nodeId) {
             try {
@@ -277,23 +245,11 @@ public class BigNodeManager extends NodeManager {
             throw new RuntimeException("not a source nor target");
         }
 
-        /*
-         * (non-Javadoc)
-         * 
-         * @see
-         * com.prosysopc.ua.nodes.UaReference#getIsInverse(com.prosysopc.ua.
-         * nodes.UaNode)
-         */
         @Override
         public boolean getIsInverse(UaNode node) {
             return getIsInverse(node.getNodeId());
         }
 
-        /*
-         * (non-Javadoc)
-         * 
-         * @see com.prosysopc.ua.nodes.UaReference#getReferenceType()
-         */
         @Override
         public UaReferenceType getReferenceType() {
             try {
@@ -304,51 +260,26 @@ public class BigNodeManager extends NodeManager {
             }
         }
 
-        /*
-         * (non-Javadoc)
-         * 
-         * @see com.prosysopc.ua.nodes.UaReference#getReferenceTypeId()
-         */
         @Override
         public NodeId getReferenceTypeId() {
             return referenceTypeId;
         }
 
-        /*
-         * (non-Javadoc)
-         * 
-         * @see com.prosysopc.ua.nodes.UaReference#getSourceId()
-         */
         @Override
         public ExpandedNodeId getSourceId() {
             return sourceId;
         }
 
-        /*
-         * (non-Javadoc)
-         * 
-         * @see com.prosysopc.ua.nodes.UaReference#getSourceNode()
-         */
         @Override
         public UaNode getSourceNode() {
             return null; // new UaExternalNodeImpl(myNodeManager, sourceId);
         }
 
-        /*
-         * (non-Javadoc)
-         * 
-         * @see com.prosysopc.ua.nodes.UaReference#getTargetId()
-         */
         @Override
         public ExpandedNodeId getTargetId() {
             return targetId;
         }
 
-        /*
-         * (non-Javadoc)
-         * 
-         * @see com.prosysopc.ua.nodes.UaReference#getTargetNode()
-         */
         @Override
         public UaNode getTargetNode() {
             return null; // new UaExternalNodeImpl(myNodeManager, targetId);
@@ -383,7 +314,7 @@ public class BigNodeManager extends NodeManager {
         } catch (ServiceResultException e) {
             throw new RuntimeException(e);
         }
-        dataItems = new HashMap<String, BigNodeManager.DataItem>(nofItems);
+        dataItems = new HashMap<>(nofItems);
         for (int i = 0; i < nofItems; i++) {
             addDataItem(String.format("DataItem_%04d", i));
         }
@@ -462,15 +393,7 @@ public class BigNodeManager extends NodeManager {
             }
         }
     }
-
-    /*
-     * (non-Javadoc)
-     * 
-     * @see
-     * com.prosysopc.ua.server.NodeManager#afterCreateMonitoredDataItem(com.
-     * prosysopc.ua.server.ServiceContext, com.prosysopc.ua.server.Subscription,
-     * com.prosysopc.ua.server.MonitoredDataItem)
-     */
+    
     @Override
     protected void afterCreateMonitoredDataItem(ServiceContext serviceContext,
             Subscription subscription, MonitoredDataItem item) {
@@ -482,18 +405,11 @@ public class BigNodeManager extends NodeManager {
             monitoredItems.put((String) dataItemName, c);
         }
         c.add(item);
-        System.out.println("nodeId=" + item.getNodeId() + "c.size()="
-                + c.size());
+        logger.info("NodeManager\t"
+                + "afterCreateMonitoredDataItem\t"
+                + "nodeId=" + item.getNodeId() + "c.size()=" + c.size());
     }
 
-    /*
-     * (non-Javadoc)
-     * 
-     * @see
-     * com.prosysopc.ua.server.NodeManager#deleteMonitoredItem(com.prosysopc
-     * .ua.server.ServiceContext, com.prosysopc.ua.server.Subscription,
-     * com.prosysopc.ua.server.MonitoredItem)
-     */
     @Override
     protected void deleteMonitoredItem(ServiceContext serviceContext,
             Subscription subscription, MonitoredItem item)
@@ -509,27 +425,12 @@ public class BigNodeManager extends NodeManager {
         }
     }
 
-    /*
-     * (non-Javadoc)
-     * 
-     * @see
-     * com.prosysopc.ua.server.NodeManager#getBrowseName(org.opcfoundation.ua
-     * .builtintypes.ExpandedNodeId, com.prosysopc.ua.nodes.UaNode)
-     */
     @Override
     protected QualifiedName getBrowseName(ExpandedNodeId nodeId, UaNode node) {
         final String name = getNodeName(nodeId);
         return new QualifiedName(getNamespaceIndex(), name);
     }
 
-    /*
-     * (non-Javadoc)
-     * 
-     * @see
-     * com.prosysopc.ua.server.NodeManager#getDisplayName(org.opcfoundation.
-     * ua.builtintypes.ExpandedNodeId, com.prosysopc.ua.nodes.UaNode,
-     * java.util.Locale)
-     */
     @Override
     protected LocalizedText getDisplayName(ExpandedNodeId nodeId,
             UaNode targetNode, Locale locale) {
@@ -537,13 +438,6 @@ public class BigNodeManager extends NodeManager {
         return new LocalizedText(name, LocalizedText.NO_LOCALE);
     }
 
-    /*
-     * (non-Javadoc)
-     * 
-     * @see
-     * com.prosysopc.ua.server.NodeManager#getNodeClass(org.opcfoundation.ua
-     * .builtintypes.ExpandedNodeId, com.prosysopc.ua.nodes.UaNode)
-     */
     @Override
     protected NodeClass getNodeClass(ExpandedNodeId nodeId, UaNode node) {
         if (getNamespaceTable().nodeIdEquals(nodeId, DataItemType)) {
@@ -556,13 +450,6 @@ public class BigNodeManager extends NodeManager {
         return NodeClass.Variable;
     }
 
-    /*
-     * (non-Javadoc)
-     * 
-     * @see
-     * com.prosysopc.ua.server.NodeManager#getReferences(org.opcfoundation.ua
-     * .builtintypes.NodeId, com.prosysopc.ua.nodes.UaNode)
-     */
     @Override
     protected UaReference[] getReferences(NodeId nodeId, UaNode node) {
         try {
@@ -614,13 +501,6 @@ public class BigNodeManager extends NodeManager {
                     Identifiers.HasTypeDefinition)};
     }
 
-    /*
-     * (non-Javadoc)
-     * 
-     * @see
-     * com.prosysopc.ua.server.NodeManager#getTypeDefinition(org.opcfoundation
-     * .ua.builtintypes.ExpandedNodeId, com.prosysopc.ua.nodes.UaNode)
-     */
     @Override
     protected ExpandedNodeId getTypeDefinition(ExpandedNodeId nodeId,
             UaNode node) {
