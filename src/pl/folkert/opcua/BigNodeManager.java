@@ -13,6 +13,7 @@ import com.prosysopc.ua.server.NodeManager;
 import com.prosysopc.ua.server.ServiceContext;
 import com.prosysopc.ua.server.Subscription;
 import com.prosysopc.ua.server.UaServer;
+import com.prosysopc.ua.server.nodes.opcua.AnalogItemType;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Locale;
@@ -396,15 +397,15 @@ public class BigNodeManager extends NodeManager {
     protected void afterCreateMonitoredDataItem(ServiceContext serviceContext,
             Subscription subscription, MonitoredDataItem item) {
         // Add all items that monitor the same node to the same collection
-        final Object dataItemName = item.getNodeId().getValue();
-        Collection<MonitoredDataItem> c = monitoredItems.get(dataItemName.toString());
+        final String dataItemName = item.getNodeId().getValue().toString();
+        Collection<MonitoredDataItem> c = monitoredItems.get(dataItemName);
         if (c == null) {
             c = new CopyOnWriteArrayList<>();
-            monitoredItems.put((String) dataItemName, c);
+            monitoredItems.put(dataItemName, c);
         }
         c.add(item);
         logger.info("afterCreateMonitoredDataItem\t"
-                + "nodeId=" + item.getNodeId() + "c.size()=" + c.size());
+                + "nodeId=" + item.getNodeId() + "\tc.size()=" + c.size());
     }
 
     @Override

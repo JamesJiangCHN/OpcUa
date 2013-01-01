@@ -8,24 +8,16 @@ import com.prosysopc.ua.PkiFileBasedCertificateValidator.ValidationResult;
 import com.prosysopc.ua.SecureIdentityException;
 import com.prosysopc.ua.StatusException;
 import com.prosysopc.ua.UserIdentity;
-import com.prosysopc.ua.ValueRanks;
 import com.prosysopc.ua.WriteAccess;
 import com.prosysopc.ua.nodes.DataChangeListener;
 import com.prosysopc.ua.nodes.UaMethod;
 import com.prosysopc.ua.nodes.UaNode;
 import com.prosysopc.ua.nodes.UaNodeFactoryException;
-import com.prosysopc.ua.nodes.UaObject;
-import com.prosysopc.ua.nodes.UaObjectType;
 import com.prosysopc.ua.nodes.UaReference;
 import com.prosysopc.ua.nodes.UaReferenceType;
-import com.prosysopc.ua.nodes.UaType;
 import com.prosysopc.ua.nodes.UaVariable;
-import com.prosysopc.ua.server.CallableListener;
 import com.prosysopc.ua.server.EventManagerListener;
-import com.prosysopc.ua.server.HistoryManagerListener;
 import com.prosysopc.ua.server.IoManagerListener;
-import com.prosysopc.ua.server.MethodManager;
-import com.prosysopc.ua.server.MethodManagerUaNode;
 import com.prosysopc.ua.server.MonitoredDataItem;
 import com.prosysopc.ua.server.MonitoredEventItem;
 import com.prosysopc.ua.server.NodeManagerListener;
@@ -36,21 +28,14 @@ import com.prosysopc.ua.server.Subscription;
 import com.prosysopc.ua.server.UaServer;
 import com.prosysopc.ua.server.UaServerException;
 import com.prosysopc.ua.server.UserValidator;
-import com.prosysopc.ua.server.nodes.CacheVariable;
-import com.prosysopc.ua.server.nodes.PlainMethod;
 import com.prosysopc.ua.server.nodes.PlainProperty;
-import com.prosysopc.ua.server.nodes.PlainVariable;
-import com.prosysopc.ua.server.nodes.UaObjectNode;
-import com.prosysopc.ua.server.nodes.UaObjectTypeNode;
 import com.prosysopc.ua.server.nodes.UaVariableNode;
 import com.prosysopc.ua.server.nodes.opcua.AcknowledgeableConditionType;
 import com.prosysopc.ua.server.nodes.opcua.AlarmConditionType;
 import com.prosysopc.ua.server.nodes.opcua.BaseEventType;
 import com.prosysopc.ua.server.nodes.opcua.BuildInfoType;
 import com.prosysopc.ua.server.nodes.opcua.ConditionType;
-import com.prosysopc.ua.server.nodes.opcua.ExclusiveLevelAlarmType;
 import com.prosysopc.ua.server.nodes.opcua.FolderType;
-import com.prosysopc.ua.server.nodes.opcua.NonExclusiveLevelAlarmType;
 import com.prosysopc.ua.server.nodes.opcua.ShelvedStateMachineType;
 import java.io.BufferedReader;
 import java.io.File;
@@ -80,31 +65,23 @@ import org.apache.log4j.Logger;
 import org.apache.log4j.PropertyConfigurator;
 import org.opcfoundation.ua.builtintypes.DataValue;
 import org.opcfoundation.ua.builtintypes.DateTime;
-import org.opcfoundation.ua.builtintypes.DiagnosticInfo;
 import org.opcfoundation.ua.builtintypes.ExpandedNodeId;
 import org.opcfoundation.ua.builtintypes.LocalizedText;
 import org.opcfoundation.ua.builtintypes.NodeId;
 import org.opcfoundation.ua.builtintypes.QualifiedName;
-import org.opcfoundation.ua.builtintypes.StatusCode;
 import org.opcfoundation.ua.builtintypes.UnsignedInteger;
 import org.opcfoundation.ua.builtintypes.Variant;
 import org.opcfoundation.ua.common.ServiceResultException;
 import org.opcfoundation.ua.core.AccessLevel;
-import org.opcfoundation.ua.core.AggregateConfiguration;
 import org.opcfoundation.ua.core.AggregateFilterResult;
 import org.opcfoundation.ua.core.ApplicationDescription;
-import org.opcfoundation.ua.core.Argument;
 import org.opcfoundation.ua.core.EventFilter;
 import org.opcfoundation.ua.core.EventFilterResult;
-import org.opcfoundation.ua.core.HistoryData;
-import org.opcfoundation.ua.core.HistoryEvent;
-import org.opcfoundation.ua.core.HistoryModifiedData;
 import org.opcfoundation.ua.core.Identifiers;
 import org.opcfoundation.ua.core.MonitoringFilter;
 import org.opcfoundation.ua.core.MonitoringParameters;
 import org.opcfoundation.ua.core.NodeAttributes;
 import org.opcfoundation.ua.core.NodeClass;
-import org.opcfoundation.ua.core.PerformUpdateType;
 import org.opcfoundation.ua.core.StatusCodes;
 import org.opcfoundation.ua.core.TimestampsToReturn;
 import org.opcfoundation.ua.core.UserTokenPolicy;
@@ -118,96 +95,6 @@ import org.opcfoundation.ua.utils.NumericRange;
  * A sample OPC UA server application.
  */
 public class SampleConsoleServer {
-
-    public class MyLevelAlarmType extends ExclusiveLevelAlarmType {
-
-        private final DataChangeListener listener = new DataChangeListener() {
-            @Override
-            public void onDataChange(UaNode uaNode, DataValue prevValue,
-                    DataValue value) {
-                Variant varValue = value == null ? Variant.NULL : value
-                        .getValue();
-                DateTime activeTime = value == null ? null : value
-                        .getSourceTimestamp();
-                if (varValue.isEmpty()) {
-                    inactivateAlarm(activeTime);
-                } else {
-                    checkAlarm(varValue.floatValue(), activeTime);
-                }
-            }
-        };
-
-        public MyLevelAlarmType(NodeManagerUaNode nodeManager, NodeId nodeId,
-                QualifiedName browseName, LocalizedText displayName) {
-            super(nodeManager, nodeId, browseName, displayName);
-        }
-
-        public MyLevelAlarmType(NodeManagerUaNode nodeManager, NodeId nodeId,
-                String name, Locale locale) {
-            super(nodeManager, nodeId, name, locale);
-        }
-
-        @Override
-        public void setInput(UaVariable node) {
-            if (getInput() instanceof UaVariableNode) {
-                ((UaVariableNode) getInput())
-                        .removeDataChangeListener(listener);
-            }
-            super.setInput(node);
-            if (node instanceof UaVariableNode) {
-                ((UaVariableNode) node).addDataChangeListener(listener);
-            }
-        }
-
-        private void triggerAlarm(DateTime activeTime) {
-            // Trigger event
-            byte[] myEventId = getNextUserEventId();
-            triggerEvent(DateTime.currentTime(), activeTime, myEventId);
-        }
-
-        /**
-         * Creates an alarm, if it is not active
-         *
-         * @param activeTime
-         */
-        protected void activateAlarm(int severity, DateTime activeTime) {
-            // Note: UaServer does not yet send any event notifications!
-            if (isEnabled()
-                    && (!isActive() || (getSeverity().getValue() != severity))) {
-                println("activateAlarm: severity=" + severity);
-                setActive(true);
-                setRetain(true);
-                setAcked(false); // Also sets confirmed to false
-                setSeverity(severity);
-
-                triggerAlarm(activeTime);
-
-            }
-        }
-
-        protected void checkAlarm(float nextValue, DateTime activeTime) {
-            if (nextValue > getHighHighLimit()) {
-                activateAlarm(700, activeTime);
-            } else if (nextValue > getHighLimit()) {
-                activateAlarm(500, activeTime);
-            } else if (nextValue < getLowLowLimit()) {
-                activateAlarm(700, activeTime);
-            } else if (nextValue < getLowLimit()) {
-                activateAlarm(500, activeTime);
-            } else {
-                inactivateAlarm(activeTime);
-            }
-        }
-
-        protected void inactivateAlarm(DateTime activeTime) {
-            if (isEnabled() && isActive()) {
-                println("inactivateAlarm");
-                setActive(false);
-                setRetain(!isAcked());
-                triggerAlarm(activeTime);
-            }
-        }
-    }
 
     enum Action {
 
@@ -323,9 +210,7 @@ public class SampleConsoleServer {
     private static final String APP_NAME = "SampleConsoleServer";
     private static int eventId = 0;
     private static Logger logger = Logger.getLogger(SampleConsoleServer.class);
-    private static NonExclusiveLevelAlarmType myAlarm;
     private static BigNodeManager myBigNodeManager;
-    private static UaObject myDevice;
     private static EventManagerListener myEventManagerListener = new EventManagerListener() {
         @Override
         public boolean onAcknowledge(ServiceContext serviceContext,
@@ -531,128 +416,6 @@ public class SampleConsoleServer {
             return eventId == null ? "(null)" : Arrays.toString(eventId);
         }
     };
-    private static HistoryManagerListener myHistoryManagerListener = new HistoryManagerListener() {
-        @Override
-        public void onDeleteAtTimes(ServiceContext serviceContext,
-                NodeId nodeId, UaNode node, DateTime[] reqTimes,
-                StatusCode[] operationResults,
-                DiagnosticInfo[] operationDiagnostics) throws StatusException {
-            throw new StatusException(
-                    StatusCodes.Bad_HistoryOperationUnsupported);
-        }
-
-        @Override
-        public void onDeleteEvents(ServiceContext serviceContext,
-                NodeId nodeId, UaNode node, byte[][] eventIds,
-                StatusCode[] operationResults,
-                DiagnosticInfo[] operationDiagnostics) throws StatusException {
-            throw new StatusException(
-                    StatusCodes.Bad_HistoryOperationUnsupported);
-        }
-
-        @Override
-        public void onDeleteModified(ServiceContext serviceContext,
-                NodeId nodeId, UaNode node, DateTime startTime, DateTime endTime)
-                throws StatusException {
-            throw new StatusException(
-                    StatusCodes.Bad_HistoryOperationUnsupported);
-        }
-
-        @Override
-        public void onDeleteRaw(ServiceContext serviceContext, NodeId nodeId,
-                UaNode node, DateTime startTime, DateTime endTime)
-                throws StatusException {
-            throw new StatusException(
-                    StatusCodes.Bad_HistoryOperationUnsupported);
-        }
-
-        @Override
-        public void onReadAtTimes(ServiceContext serviceContext,
-                TimestampsToReturn timestampsToReturn, NodeId nodeId,
-                UaNode node, byte[] continuationPoint, DateTime[] reqTimes,
-                NumericRange indexRange, HistoryData historyData)
-                throws StatusException {
-            throw new StatusException(
-                    StatusCodes.Bad_HistoryOperationUnsupported);
-        }
-
-        @Override
-        public void onReadEvents(ServiceContext serviceContext, NodeId nodeId,
-                UaNode node, byte[] continuationPoint, DateTime startTime,
-                DateTime endTime, UnsignedInteger numValuesPerNode,
-                EventFilter filter, HistoryEvent historyEvent)
-                throws StatusException {
-            throw new StatusException(
-                    StatusCodes.Bad_HistoryOperationUnsupported);
-        }
-
-        @Override
-        public void onReadModified(ServiceContext serviceContext,
-                TimestampsToReturn timestampsToReturn, NodeId nodeId,
-                UaNode node, byte[] continuationPoint, DateTime startTime,
-                DateTime endTime, UnsignedInteger numValuesPerNode,
-                NumericRange indexRange, HistoryModifiedData historyData)
-                throws StatusException {
-            throw new StatusException(
-                    StatusCodes.Bad_HistoryOperationUnsupported);
-        }
-
-        @Override
-        public void onReadProcessed(ServiceContext serviceContext,
-                TimestampsToReturn timestampsToReturn, NodeId nodeId,
-                UaNode node, byte[] continuationPoint, DateTime startTime,
-                DateTime endTime, Double resampleInterval,
-                NodeId aggregateType,
-                AggregateConfiguration aggregateConfiguration,
-                NumericRange indexRange, HistoryData historyData)
-                throws StatusException {
-            throw new StatusException(
-                    StatusCodes.Bad_HistoryOperationUnsupported);
-        }
-
-        @Override
-        public void onReadRaw(ServiceContext serviceContext,
-                TimestampsToReturn timestampsToReturn, NodeId nodeId,
-                UaNode node, byte[] continuationPoint, DateTime startTime,
-                DateTime endTime, UnsignedInteger numValuesPerNode,
-                Boolean returnBounds, NumericRange indexRange,
-                HistoryData historyData) throws StatusException {
-            if (node == myLevel) {
-                historyData.setDataValues(myLevelHistory.getHistory(startTime,
-                        endTime, numValuesPerNode.intValue(), returnBounds));
-            }
-        }
-
-        @Override
-        public void onUpdateData(ServiceContext serviceContext, NodeId nodeId,
-                UaNode node, DataValue[] updateValues,
-                PerformUpdateType performInsertReplace,
-                StatusCode[] operationResults,
-                DiagnosticInfo[] operationDiagnostics) throws StatusException {
-            throw new StatusException(
-                    StatusCodes.Bad_HistoryOperationUnsupported);
-        }
-
-        @Override
-        public void onUpdateEvent(ServiceContext serviceContext, NodeId nodeId,
-                UaNode node, Variant[] eventFields, EventFilter filter,
-                PerformUpdateType performInsertReplace,
-                StatusCode[] operationResults,
-                DiagnosticInfo[] operationDiagnostics) throws StatusException {
-            throw new StatusException(
-                    StatusCodes.Bad_HistoryOperationUnsupported);
-        }
-
-        @Override
-        public void onUpdateStructureData(ServiceContext serviceContext,
-                NodeId nodeId, UaNode node, DataValue[] updateValues,
-                PerformUpdateType performUpdateType,
-                StatusCode[] operationResults,
-                DiagnosticInfo[] operationDiagnostics) throws StatusException {
-            throw new StatusException(
-                    StatusCodes.Bad_HistoryOperationUnsupported);
-        }
-    };
     private static IoManagerListener myIoManagerListener = new IoManagerListener() {
         @Override
         public EnumSet<AccessLevel> onGetUserAccessLevel(
@@ -713,88 +476,6 @@ public class SampleConsoleServer {
                 NodeId nodeId, UaVariable node, NumericRange indexRange,
                 DataValue dataValue) throws StatusException {
             return false;
-        }
-    };
-    private static UaVariableNode myLevel;
-    private static ValueHistory myLevelHistory;
-    private static PlainMethod myMethod;
-    private static CallableListener myMethodManagerListener = new CallableListener() {
-        @Override
-        public boolean onCall(ServiceContext serviceContext, NodeId objectId,
-                UaNode object, NodeId methodId, UaMethod method,
-                final Variant[] inputArguments,
-                final StatusCode[] inputArgumentResults,
-                final DiagnosticInfo[] inputArgumentDiagnosticInfos,
-                final Variant[] outputs) throws StatusException {
-            // Handle method calls
-            // Note that the outputs is already allocated
-            if (methodId.equals(myMethod.getNodeId())) {
-                logger.info("myMethod: " + Arrays.toString(inputArguments));
-                MethodManager.checkInputArguments(new Class[]{String.class,
-                            Double.class}, inputArguments, inputArgumentResults,
-                        inputArgumentDiagnosticInfos, false);
-                String operation;
-                try {
-                    operation = (String) inputArguments[0].getValue();
-                } catch (ClassCastException e) {
-                    throw inputError(0, e.getMessage(), inputArgumentResults,
-                            inputArgumentDiagnosticInfos);
-                }
-                double input;
-                try {
-                    input = inputArguments[1].intValue();
-                } catch (ClassCastException e) {
-                    throw inputError(1, e.getMessage(), inputArgumentResults,
-                            inputArgumentDiagnosticInfos);
-                }
-
-                operation = operation.toLowerCase();
-                double result;
-                        switch (operation) {
-                            case "sin":
-                                result = Math.sin(Math.toRadians(input));
-                                break;
-                            case "cos":
-                                result = Math.cos(Math.toRadians(input));
-                                break;
-                            case "tan":
-                                result = Math.tan(Math.toRadians(input));
-                                break;
-                            case "pow":
-                                result = input * input;
-                                break;
-                            default:
-                                throw inputError(1, "Unknown function '" + operation
-                                        + "': valid functions are sin, cos, tan, pow",
-                                        inputArgumentResults, inputArgumentDiagnosticInfos);
-                        }
-                outputs[0] = new Variant(result);
-                return true; // Handled here
-            } else {
-                return false;
-            }
-        }
-
-        /**
-         * Handle an error in method inputs.
-         *
-         * @param index index of the failing input
-         * @param message error message
-         * @param inputArgumentResults the results array to fill in
-         * @param inputArgumentDiagnosticInfos the diagnostics array to fill in
-         * @return StatusException that can be thrown to break further method
-         * handling
-         */
-        private StatusException inputError(final int index,
-                final String message, StatusCode[] inputArgumentResults,
-                DiagnosticInfo[] inputArgumentDiagnosticInfos) {
-            logger.info("inputError: #" + index + " message=" + message);
-            inputArgumentResults[index] = new StatusCode(
-                    StatusCodes.Bad_InvalidArgument);
-            final DiagnosticInfo di = new DiagnosticInfo();
-            di.setAdditionalInfo(message);
-            inputArgumentDiagnosticInfos[index] = di;
-            return new StatusException(StatusCodes.Bad_InvalidArgument);
         }
     };
     private static NodeManagerUaNode myNodeManager;
@@ -903,7 +584,6 @@ public class SampleConsoleServer {
         }
     };
     private static FolderType myObjectsFolder;
-    private static PlainVariable<Boolean> mySwitch;
     private static UaServer server;
     private final static Runnable simulationTask = new Runnable() {
         double dx = 1;
@@ -911,33 +591,8 @@ public class SampleConsoleServer {
         @Override
         public void run() {
             if (server.isRunning()) {
-                final DataValue v = myLevel.getValue();
-                Double nextValue = v.isNull() ? 0 : v.getValue().doubleValue()
-                        + dx;
-                if (nextValue <= 0) {
-                    dx = 1;
-                } else if (nextValue >= 100) {
-                    dx = -1;
-                }
-                try {
-                    ((CacheVariable) myLevel).updateValue(nextValue);
-                    if (nextValue > myAlarm.getHighHighLimit()) {
-                        activateAlarm(700);
-                    } else if (nextValue > myAlarm.getHighLimit()) {
-                        activateAlarm(500);
-                    } else if (nextValue < myAlarm.getLowLowLimit()) {
-                        activateAlarm(700);
-                    } else if (nextValue < myAlarm.getLowLimit()) {
-                        activateAlarm(500);
-                    } else {
-                        inactivateAlarm();
-                    }
-                } catch (Exception e) {
-                    printException(e);
-                    throw new RuntimeException(e); // End the task
-                }
+                myBigNodeManager.simulate();
             }
-            myBigNodeManager.simulate();
         }
     };
     private final static ScheduledExecutorService simulator = Executors
@@ -1079,7 +734,6 @@ public class SampleConsoleServer {
         // Start the server, when you have finished your own initializations
         // This will allow connections from the clients
         server.start();
-        initHistory();
         startSimulation();
 
         // *** Main Menu Loop
@@ -1091,27 +745,6 @@ public class SampleConsoleServer {
         println("Shutting down...");
         server.shutdown(5, new LocalizedText("Closed by user", Locale.ENGLISH));
         println("Closed.");
-    }
-
-    /**
-     * Creates an alarm, if it is not active
-     */
-    private static void activateAlarm(int severity) {
-        if (myAlarm.isEnabled()
-                && (!myAlarm.isActive() || (myAlarm.getSeverity().getValue() != severity))) {
-//            println("activateAlarm: severity=" + severity);
-            myAlarm.setActive(true);
-            myAlarm.setRetain(true);
-            myAlarm.setAcked(false); // Also sets confirmed to false
-            myAlarm.setSeverity(severity);
-
-            triggerAlarm();
-
-            // If you wish to check whether any clients are monitoring your
-            // alarm, you can use the following
-
-            // logger.info("isMonitored=" + myAlarm.isMonitoredForEvents());
-        }
     }
 
     private static void addNode(String name) {
@@ -1157,128 +790,10 @@ public class SampleConsoleServer {
 
         // My I/O Manager Listener
         myNodeManager.getIoManager().setListener(myIoManagerListener);
-
-        // My HistoryManager
-        myNodeManager.getHistoryManager().setListener(myHistoryManagerListener);
-
-        // +++ My nodes +++
-
-        int ns = myNodeManager.getNamespaceIndex();
-
-        // UA types and folders which we will use
-        final UaObject objectsFolder = server.getNodeManagerRoot()
-                .getObjectsFolder();
-        final UaType baseObjectType = server.getNodeManagerRoot().getType(
-                Identifiers.BaseObjectType);
-        final UaType baseDataVariableType = server.getNodeManagerRoot()
-                .getType(Identifiers.BaseDataVariableType);
-
-        // Folder for my objects
-
-        final NodeId myObjectsFolderId = new NodeId(ns, "MyObjectsFolder");
-        myObjectsFolder = new FolderType(myNodeManager, myObjectsFolderId,
-                "MyObjects", Locale.ENGLISH);
-        myNodeManager.addNodeAndReference(objectsFolder, myObjectsFolder,
-                Identifiers.Organizes);
-
-        // My Device Type
-
-        final NodeId myDeviceTypeId = new NodeId(ns, "MyDeviceType");
-        UaObjectType myDeviceType = new UaObjectTypeNode(myNodeManager,
-                myDeviceTypeId, "MyDeviceType", Locale.ENGLISH);
-        myNodeManager.addNodeAndReference(baseObjectType, myDeviceType,
-                Identifiers.HasSubtype);
-
-        // My Device
-
-        final NodeId myDeviceId = new NodeId(ns, "MyDevice");
-        myDevice = new UaObjectNode(myNodeManager, myDeviceId, "MyDevice",
-                Locale.ENGLISH);
-        myDevice.setTypeDefinition(myDeviceType);
-        myObjectsFolder.addReference(myDevice, Identifiers.HasComponent, false);
-
-        // My Level Type
-
-        final NodeId myLevelTypeId = new NodeId(ns, "MyLevelType");
-        UaType myLevelType = myNodeManager.addType(myLevelTypeId,
-                "MyLevelType", baseDataVariableType);
-
-        // My Level Measurement
-
-        final NodeId myLevelId = new NodeId(ns, "MyLevel");
-        UaType doubleType = server.getNodeManagerRoot().getType(
-                Identifiers.Double);
-        myLevel = new CacheVariable(myNodeManager, myLevelId, "MyLevel",
-                Locale.ENGLISH);
-        myLevel.setDataType(doubleType);
-        myLevel.setTypeDefinition(myLevelType);
-        myDevice.addReference(myLevel, Identifiers.HasComponent, false);
-
-        // My Switch
-        // Use PlainVariable and addComponent() to add it to myDevice
-        // Note that we use NodeIds instead of UaNodes to define the data type
-        // and type definition
-
-        NodeId mySwitchId = new NodeId(ns, "MySwitch");
-        mySwitch = new PlainVariable<>(myNodeManager, mySwitchId,
-                "MySwitch", Locale.ENGLISH);
-        mySwitch.setDataTypeId(Identifiers.Boolean);
-        mySwitch.setTypeDefinitionId(Identifiers.BaseDataVariableType);
-        myDevice.addComponent(mySwitch); // addReference(...Identifiers.HasComponent...);
-
-        // Initial value
-        mySwitch.setCurrentValue(false);
-
-        createAlarmNode(ns);
-
-        createMethodNode(ns);
-
+        
         createBigNodeManager();
 
         logger.info("Address space created.");
-    }
-
-    /**
-     * Create a sample alarm node structure.
-     *
-     * @param ns the namespaceIndex for the nodes
-     * @throws StatusException
-     */
-    private static void createAlarmNode(int ns) throws StatusException {
-
-        // Level Alarm from the LevelMeasurement
-
-        // See the Spec. Part 9. Appendix B.2 for a similar example
-
-        final NodeId myAlarmId = new NodeId(ns, "MyLevel.Alarm");
-        myAlarm = new NonExclusiveLevelAlarmType(myNodeManager, myAlarmId,
-                "MyLevelAlarm", Locale.ENGLISH);
-        // ConditionSource is the node which has this condition
-        myAlarm.setSource(myLevel);
-        // Input is the node which has the measurement that generates the alarm
-        myAlarm.setInput(myLevel);
-
-        myAlarm.setMessage("Level exceeded"); // Default locale
-        myAlarm.setMessage("F�llst�ndalarm!", Locale.GERMAN);
-        myAlarm.setSeverity(500); // Medium level warning
-        myAlarm.setHighHighLimit(90);
-        myAlarm.setHighLimit(70);
-        myAlarm.setLowLowLimit(10);
-        myAlarm.setLowLimit(30);
-        myAlarm.setEnabled(true);
-        myDevice.addComponent(myAlarm); // addReference(...Identifiers.HasComponent...)
-
-        // + HasCondition, the SourceNode of the reference should normally
-        // correspond to the Source set above
-        myLevel.addReference(myAlarm, Identifiers.HasCondition, false);
-
-        // + EventSource, the target of the EventSource is normally the
-        // source of the HasCondition reference
-        myDevice.addReference(myLevel, Identifiers.HasEventSource, false);
-
-        // + HasNotifier, these are used to link the source of the EventSource
-        // up in the address space hierarchy
-        myObjectsFolder.addReference(myDevice, Identifiers.HasNotifier, false);
     }
 
     /**
@@ -1289,52 +804,6 @@ public class SampleConsoleServer {
     private static void createBigNodeManager() {
         myBigNodeManager = new BigNodeManager(server,
                 "http://www.prosysopc.com/OPCUA/SampleBigAddressSpace", 1000);
-    }
-
-    /**
-     * Create a sample method.
-     *
-     * @param ns the namespaceIndex for the nodes
-     * @throws StatusException
-     */
-    private static void createMethodNode(int ns) throws StatusException {
-        final NodeId myMethodId = new NodeId(ns, "MyMethod");
-        myMethod = new PlainMethod(myNodeManager, myMethodId, "MyMethod",
-                Locale.ENGLISH);
-        Argument[] inputs = new Argument[2];
-        inputs[0] = new Argument();
-        inputs[0].setName("Operation");
-        inputs[0].setDataType(Identifiers.String);
-        inputs[0].setValueRank(ValueRanks.Scalar);
-        inputs[0].setArrayDimensions(null);
-        inputs[0]
-                .setDescription(new LocalizedText(
-                "The operation to perform on parameter: valid functions are sin, cos, tan, pow",
-                Locale.ENGLISH));
-        inputs[1] = new Argument();
-        inputs[1].setName("Parameter");
-        inputs[1].setDataType(Identifiers.Double);
-        inputs[1].setValueRank(ValueRanks.Scalar);
-        inputs[1].setArrayDimensions(null);
-        inputs[1].setDescription(new LocalizedText(
-                "The parameter for operation", Locale.ENGLISH));
-        myMethod.setInputArguments(inputs);
-
-        Argument[] outputs = new Argument[1];
-        outputs[0] = new Argument();
-        outputs[0].setName("Result");
-        outputs[0].setDataType(Identifiers.Double);
-        outputs[0].setValueRank(ValueRanks.Scalar);
-        outputs[0].setArrayDimensions(null);
-        outputs[0].setDescription(new LocalizedText(
-                "The result of 'operation(parameter)'", Locale.ENGLISH));
-        myMethod.setOutputArguments(outputs);
-
-        myNodeManager.addNodeAndReference(myDevice, myMethod,
-                Identifiers.HasComponent);
-        MethodManagerUaNode m = (MethodManagerUaNode) myNodeManager
-                .getMethodManager();
-        m.addCallListener(myMethodManagerListener);
     }
 
     /**
@@ -1363,18 +832,6 @@ public class SampleConsoleServer {
      */
     private static byte[] getNextUserEventId() throws RuntimeException {
         return BaseEventType.createEventId(eventId++);
-    }
-
-    /**
-     *
-     */
-    private static void inactivateAlarm() {
-        if (myAlarm.isEnabled() && myAlarm.isActive()) {
-//            println("inactivateAlarm");
-            myAlarm.setActive(false);
-            myAlarm.setRetain(!myAlarm.isAcked());
-            triggerAlarm();
-        }
     }
 
     /**
@@ -1411,14 +868,6 @@ public class SampleConsoleServer {
             c.setTimeInMillis(mfFile.lastModified());
             buildInfo.setBuildDate(new DateTime(c));
         }
-    }
-
-    /**
-     *
-     */
-    private static void initHistory() {
-        myLevelHistory = new ValueHistory(myLevel);
-        myLevel.setHistorizing(true);
     }
 
     /**
@@ -1481,16 +930,6 @@ public class SampleConsoleServer {
     private static void stopSimulation() {
         simulator.shutdown();
         logger.info("Simulation stopped.");
-    }
-
-    /**
-     * @return @throws RuntimeException
-     */
-    private static void triggerAlarm() throws RuntimeException {
-        // Trigger event
-        final DateTime now = DateTime.currentTime();
-        byte[] myEventId = getNextUserEventId();
-        myAlarm.triggerEvent(now, now, myEventId);
     }
 
     /*
