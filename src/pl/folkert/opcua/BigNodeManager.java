@@ -43,14 +43,13 @@ import org.opcfoundation.ua.utils.NumericRange;
  * but connects to an underlying system for the data.
  */
 public class BigNodeManager extends NodeManager {
-    
-    protected static final Logger logger = Logger.getLogger("log4j.logger.com.prosysopc.ua");
+
+    protected static final Logger logger = Logger.getLogger(BigNodeManager.class.getCanonicalName());
 
     public class DataItem {
 
         private final String name;
-        private StatusCode status = new StatusCode(
-                StatusCodes.Bad_WaitingForInitialData);
+        private StatusCode status = new StatusCode(StatusCodes.Bad_WaitingForInitialData);
         private DateTime timestamp;
         private double value;
 
@@ -154,7 +153,7 @@ public class BigNodeManager extends NodeManager {
             } else if (attributeId.equals(Attributes.DisplayName)) {
                 value = getDisplayName(expandedNodeId, node, null);
             } else if (attributeId.equals(Attributes.Description)) {
-                value = null;
+                value = "";
             } else if (attributeId.equals(Attributes.NodeClass)) {
                 value = getNodeClass(expandedNodeId, node);
             } else if (attributeId.equals(Attributes.WriteMask)) {
@@ -383,8 +382,7 @@ public class BigNodeManager extends NodeManager {
      */
     private void notifyMonitoredDataItems(DataItem dataItem) {
         // Get the list of items watching dataItem
-        Collection<MonitoredDataItem> c = monitoredItems
-                .get(dataItem.getName());
+        Collection<MonitoredDataItem> c = monitoredItems.get(dataItem.getName());
         if (c != null) {
             for (MonitoredDataItem item : c) {
                 DataValue dataValue = new DataValue();
@@ -393,20 +391,19 @@ public class BigNodeManager extends NodeManager {
             }
         }
     }
-    
+
     @Override
     protected void afterCreateMonitoredDataItem(ServiceContext serviceContext,
             Subscription subscription, MonitoredDataItem item) {
         // Add all items that monitor the same node to the same collection
         final Object dataItemName = item.getNodeId().getValue();
-        Collection<MonitoredDataItem> c = monitoredItems.get(dataItemName);
+        Collection<MonitoredDataItem> c = monitoredItems.get(dataItemName.toString());
         if (c == null) {
             c = new CopyOnWriteArrayList<>();
             monitoredItems.put((String) dataItemName, c);
         }
         c.add(item);
-        logger.info("NodeManager\t"
-                + "afterCreateMonitoredDataItem\t"
+        logger.info("afterCreateMonitoredDataItem\t"
                 + "nodeId=" + item.getNodeId() + "c.size()=" + c.size());
     }
 
@@ -416,13 +413,16 @@ public class BigNodeManager extends NodeManager {
             throws StatusException {
         // Find the collection in which the monitoredItem is
         // and remove the item from the collection
-        Collection<MonitoredDataItem> c = monitoredItems.get(item.getNodeId());
+        String itemNodeId = item.getNodeId().toString();
+        Collection<MonitoredDataItem> c = monitoredItems.get(item.getNodeId().getValue().toString());
         if (c != null) {
-            c.remove(item);
+            c.remove((MonitoredDataItem) item);
             if (c.isEmpty()) {
-                monitoredItems.remove(item.getNodeId());
+                monitoredItems.remove(item.getNodeId().getValue().toString());
             }
         }
+        logger.info("deleteMonitoredItem\t"
+                + "nodeId=" + itemNodeId + "c.size()=" + c.size());
     }
 
     @Override

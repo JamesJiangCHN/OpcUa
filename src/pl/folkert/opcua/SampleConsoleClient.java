@@ -166,7 +166,7 @@ public class SampleConsoleClient {
             // println("ServerStatus: " + status);
         }
     };
-    private static String serverUri = "opc.tcp://acer.mshome.net:4081/SubscriptionServer";
+    private static String serverUri = "opc.tcp://localhost:52520/OPCUA/SampleConsoleServer";
     private static int sessionCount = 0;
     // application options and arguments
     private static final boolean showReadValueDataType = true;

@@ -1099,7 +1099,7 @@ public class SampleConsoleServer {
     private static void activateAlarm(int severity) {
         if (myAlarm.isEnabled()
                 && (!myAlarm.isActive() || (myAlarm.getSeverity().getValue() != severity))) {
-            println("activateAlarm: severity=" + severity);
+//            println("activateAlarm: severity=" + severity);
             myAlarm.setActive(true);
             myAlarm.setRetain(true);
             myAlarm.setAcked(false); // Also sets confirmed to false
@@ -1370,7 +1370,7 @@ public class SampleConsoleServer {
      */
     private static void inactivateAlarm() {
         if (myAlarm.isEnabled() && myAlarm.isActive()) {
-            println("inactivateAlarm");
+//            println("inactivateAlarm");
             myAlarm.setActive(false);
             myAlarm.setRetain(!myAlarm.isAcked());
             triggerAlarm();
