@@ -591,7 +591,7 @@ public class SampleConsoleServer {
         @Override
         public void run() {
             if (server.isRunning()) {
-                myBigNodeManager.simulate();
+                myBigNodeManager.setValues(System.currentTimeMillis() / 1000d);
             }
         }
     };

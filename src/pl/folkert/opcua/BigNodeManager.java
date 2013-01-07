@@ -13,13 +13,19 @@ import com.prosysopc.ua.server.NodeManager;
 import com.prosysopc.ua.server.ServiceContext;
 import com.prosysopc.ua.server.Subscription;
 import com.prosysopc.ua.server.UaServer;
-import com.prosysopc.ua.server.nodes.opcua.AnalogItemType;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import org.apache.log4j.Logger;
 import org.opcfoundation.ua.builtintypes.DataValue;
 import org.opcfoundation.ua.builtintypes.DateTime;
@@ -38,6 +44,8 @@ import org.opcfoundation.ua.core.NodeClass;
 import org.opcfoundation.ua.core.StatusCodes;
 import org.opcfoundation.ua.core.TimestampsToReturn;
 import org.opcfoundation.ua.utils.NumericRange;
+import pl.folkert.opcua.source.SourceClient;
+import pl.folkert.opcua.synchro.SynchroClient;
 
 /**
  * A sample implementation of a NodeManager which does not use UaNode objects,
@@ -46,6 +54,16 @@ import org.opcfoundation.ua.utils.NumericRange;
 public class BigNodeManager extends NodeManager {
 
     protected static final Logger logger = Logger.getLogger(BigNodeManager.class.getCanonicalName());
+
+    @Override
+    public NodeId getVariableDataType(NodeId nodeid) throws StatusException {
+        throw new UnsupportedOperationException("Not supported yet.");
+    }
+
+    @Override
+    public boolean hasNode(NodeId nodeid) {
+        throw new UnsupportedOperationException("Not supported yet.");
+    }
 
     public class DataItem {
 
@@ -163,13 +181,15 @@ public class BigNodeManager extends NodeManager {
             else if (attributeId.equals(Attributes.DataType)) {
                 value = Identifiers.Double;
             } else if (attributeId.equals(Attributes.ValueRank)) {
-                value = ValueRanks.OneDimension;
+                value = ValueRanks.Scalar;
             } else if (attributeId.equals(Attributes.ArrayDimensions)) {
-                value = null;
+                value = -1;
             } else if (attributeId.equals(Attributes.AccessLevel)) {
                 value = AccessLevel.getMask(AccessLevel.READONLY);
             } else if (attributeId.equals(Attributes.Historizing)) {
                 value = false;
+            } else if (attributeId.equals(Attributes.MinimumSamplingInterval)) {
+                value = 0;
             }
 
             dataValue.setValue(new Variant(value));
@@ -285,12 +305,43 @@ public class BigNodeManager extends NodeManager {
             return null; // new UaExternalNodeImpl(myNodeManager, targetId);
         }
     }
+
+    private class SamplingTask implements Runnable {
+
+        public SamplingTask() {
+        }
+        private ActionListener actionListener = new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (server.isRunning()) {
+                    Integer value = e.getID();
+                    BigNodeManager.this.setValues(value);
+//			for (CacheVariable node : intObjects) {
+//			    node.updateValue(value);
+//			}
+                }
+            }
+        };
+        final SourceClient sourceClient = new SourceClient(Common.SOURCE_SERVER_HOST, Common.SOURCE_SERVER_PORT, actionListener);
+
+        public SourceClient getSourceClient() {
+            return sourceClient;
+        }
+
+        @Override
+        public void run() {
+            sourceClient.sample();
+        }
+    }
     private static ExpandedNodeId DataItemType;
     private final ExpandedNodeId DataItemFolder;
     private final Map<String, DataItem> dataItems;
     private final Map<String, Collection<MonitoredDataItem>> monitoredItems = new ConcurrentHashMap<>();
-    private final BigIoManager myBigIoManager;
-    private double t = 0;
+    private final HashMap<NodeId, ScheduledExecutorService> schedulers = new HashMap<>();
+    private final HashMap<NodeId, SamplingTask> samplingTasks = new HashMap<>();
+    private final HashMap<ScheduledExecutorService, SamplingTask> waitingSchedulers = new HashMap<>();
+    private final HashMap<ScheduledExecutorService, Integer> waitingIntervals = new HashMap<>();
+    private UaServer server;
 
     /**
      * Default constructor
@@ -301,6 +352,7 @@ public class BigNodeManager extends NodeManager {
      */
     public BigNodeManager(UaServer server, String namespaceUri, int nofItems) {
         super(server, namespaceUri);
+        this.server = server;
         DataItemType = new ExpandedNodeId(null, getNamespaceIndex(),
                 "DataItemType");
         DataItemFolder = new ExpandedNodeId(null, getNamespaceIndex(),
@@ -319,7 +371,62 @@ public class BigNodeManager extends NodeManager {
             addDataItem(String.format("DataItem_%04d", i));
         }
 
-        myBigIoManager = new BigIoManager(this);
+    }
+    private SynchroClient synchroClient = new SynchroClient(Common.SYNCHRO_SERVER_HOST, Common.SYNCHRO_SERVER_PORT, new ActionListener() {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            int waitingTasks = waitingSchedulers.keySet().size();
+            Set<ScheduledExecutorService> keySet = new HashSet(waitingSchedulers.keySet());
+            for (ScheduledExecutorService sourceScheduler : keySet) {
+                Integer interval = waitingIntervals.remove(sourceScheduler);
+                if (interval != null) {
+                    sourceScheduler.scheduleAtFixedRate(waitingSchedulers.remove(sourceScheduler), interval, interval, TimeUnit.MILLISECONDS);
+                }
+            }
+            if (waitingTasks > 0) {
+                System.out.println(waitingTasks + " sampling task(s) started.");
+            }
+            System.err.println(System.currentTimeMillis());
+        }
+    });
+    private SamplingTask samplingTask = null;
+
+    private void startSampling(MonitoredDataItem item) {
+
+        if (samplingTask == null) {
+            samplingTask = new SamplingTask();
+            samplingTasks.put(item.getNodeId(), samplingTask);
+
+            ScheduledExecutorService sourceScheduler = schedulers.get(item.getNodeId());
+            if (sourceScheduler == null) {
+                sourceScheduler = Executors.newSingleThreadScheduledExecutor();
+                schedulers.put(item.getNodeId(), sourceScheduler);
+            }
+            waitingSchedulers.put(sourceScheduler, samplingTask);
+            waitingIntervals.put(sourceScheduler, (int) item.getSamplingInterval());
+        }
+
+    }
+
+    private void stopSampling(MonitoredDataItem item) {
+        SamplingTask removedTask = samplingTasks.remove(item.getNodeId());
+        if (removedTask != null) {
+            removedTask.getSourceClient().disconnect();
+        }
+        ScheduledExecutorService removedService = schedulers.remove(item.getNodeId());
+        if (removedService != null) {
+            removedService.shutdown();
+        }
+    }
+
+    public void shutdown() {
+        Set<NodeId> keySet = new HashSet(schedulers.keySet());
+        for (NodeId item : keySet) {
+            schedulers.remove(item).shutdown();
+            samplingTasks.remove(item).getSourceClient().disconnect();
+        }
+        server.shutdown(1, new LocalizedText("Closed by user", Locale.ENGLISH));
+        synchroClient.disconnect();
     }
 
     /**
@@ -404,6 +511,10 @@ public class BigNodeManager extends NodeManager {
             monitoredItems.put(dataItemName, c);
         }
         c.add(item);
+        if (item.getSamplingInterval() <= 0.0d) {
+            item.setSamplingInterval(1.0d);
+        }
+        startSampling(item);
         logger.info("afterCreateMonitoredDataItem\t"
                 + "nodeId=" + item.getNodeId() + "\tc.size()=" + c.size());
     }
@@ -422,8 +533,9 @@ public class BigNodeManager extends NodeManager {
                 monitoredItems.remove(item.getNodeId().getValue().toString());
             }
         }
+        stopSampling((MonitoredDataItem) item);
         logger.info("deleteMonitoredItem\t"
-                + "nodeId=" + itemNodeId + "c.size()=" + c.size());
+                + "nodeId=" + itemNodeId + "\tc.size()=" + c.size());
     }
 
     @Override
@@ -516,9 +628,7 @@ public class BigNodeManager extends NodeManager {
         return DataItemType;
     }
 
-    void simulate() {
-        t = t + Math.PI / 180;
-        double value = 100 * Math.sin(t);
+    public void setValues(double value) {
         for (DataItem d : dataItems.values()) {
             d.setValue(value);
             notifyMonitoredDataItems(d);
